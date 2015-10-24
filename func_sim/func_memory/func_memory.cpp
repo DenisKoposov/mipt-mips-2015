@@ -20,6 +20,7 @@
 #include <func_memory.h>
 
 #define BITS_IN_BYTE 8
+#define WORD_LENG 4
 
 FuncMemory::FuncMemory( const char* executable_file_name,
                         uint64 addr_bits,
@@ -29,12 +30,12 @@ FuncMemory::FuncMemory( const char* executable_file_name,
     this->addr_size = addr_bits;
     this->page_num_size = page_bits;
     this->offset_size = offset_bits;
-    this->max_sets = ( (uint64) 1 << ( addr_bits - page_bits
-                                                 - offset_bits)) - 1;
-    this->max_pages = ( ( uint64) 1 << page_bits) - 1;
-    this->max_bytes =  ( ( uint64) 1 << offset_size) - 1;
+    this->max_sets = (uint64) 1 << ( addr_bits - page_bits
+                                                 - offset_bits);
+    this->max_pages = ( uint64) 1 << page_bits;
+    this->max_bytes = ( uint64) 1 << offset_size;
     /*mem_size = Maximal volume of available memory*/
-    this->mem_size = ( ( uint64) 1 << addr_bits) - 1;
+    this->mem_size = ( uint64) 1 << addr_bits;
 
     vector<ElfSection> sections_array;
     ElfSection:: getAllElfSections( executable_file_name, sections_array);
@@ -42,9 +43,9 @@ FuncMemory::FuncMemory( const char* executable_file_name,
     vector<ElfSection>::const_iterator it;
     vector<ElfSection>::const_iterator ending = sections_array.end();
 
-    this->array_of_sets = ( uint8***) calloc ( max_sets + 1, sizeof( uint8**));
+    array_of_sets = ( uint8***) calloc ( max_sets, sizeof(uint8**));
 
-    if ( this->array_of_sets == NULL)
+    if ( array_of_sets == NULL)
         {
         cerr << "ERROR_INIT: Memory allocation fault" << endl;
         exit( EXIT_FAILURE);
@@ -69,7 +70,7 @@ FuncMemory::FuncMemory( const char* executable_file_name,
             uint64 cur_page = getPage( addr + bytes_copied);     // current parameters of set, page, offset
             uint64 cur_offset = getOffset( addr + bytes_copied); //
 
-            if ( cur_set < 0 || cur_set > max_sets)
+            if ( cur_set < 0 || cur_set >= max_sets)
                 {
                 cerr << "ERROR_INIT: cur_set(set pointer) is out of bounds"
                      << endl;
@@ -78,8 +79,8 @@ FuncMemory::FuncMemory( const char* executable_file_name,
 
             if ( array_of_sets[ cur_set] == NULL)
                 {
-                array_of_sets[ cur_set] = (uint8**) calloc (max_pages + 1,
-                                                            sizeof(uint8*));
+                array_of_sets[ cur_set] = ( uint8**) calloc ( max_pages, sizeof(uint8*));
+
                 if ( array_of_sets[ cur_set] == NULL)
                     {
                     cerr << "ERROR_INIT: Memory allocation fault" << endl;
@@ -89,9 +90,9 @@ FuncMemory::FuncMemory( const char* executable_file_name,
 
             if ( array_of_sets[ cur_set][ cur_page] == NULL)
                 {
-                array_of_sets[ cur_set][ cur_page] = (uint8*) calloc (max_bytes + 1,
-                                                                  sizeof(uint8));
-                if ( array_of_sets == NULL)
+                array_of_sets[ cur_set][ cur_page] = ( uint8*) calloc ( max_bytes, sizeof( uint8));
+
+                if ( array_of_sets[ cur_set][ cur_page] == NULL)
                     {
                     cerr << "ERROR_INIT: Memory allocation fault" << endl;
                     exit( EXIT_FAILURE);
@@ -117,7 +118,20 @@ FuncMemory::FuncMemory( const char* executable_file_name,
 
 FuncMemory::~FuncMemory()
 {
-    delete [] array_of_sets;
+    for ( int i = 0; i < max_sets; ++i)
+        {
+        for ( int j = 0; j < max_pages; ++j)
+            {
+            free(   array_of_sets[i][j]);
+            array_of_sets[i][j] = 0;
+            }
+
+        free( array_of_sets[i]);
+        array_of_sets[i] = 0;
+        }
+
+   free( array_of_sets);
+   array_of_sets = 0;
 }
 
 uint64 FuncMemory::getSet( uint64 addr) const
@@ -162,19 +176,19 @@ uint64 FuncMemory::read( uint64 addr, unsigned short num_of_bytes) const
         uint64 cur_page = getPage( addr + bytes_read);
         uint64 cur_offset = getOffset( addr + bytes_read);
 
-        if ( cur_offset == max_bytes + 1)
+        if ( cur_offset == max_bytes)
             {
             cur_offset = 0;
             cur_page++;
             }
 
-        if ( cur_page == max_pages + 1)
+        if ( cur_page == max_pages)
             {
             cur_page = 0;
             cur_set++;
             }
 
-        if ( cur_set < 0 || cur_set > max_sets)
+        if ( cur_set < 0 || cur_set >= max_sets)
             {
             cerr << "ERROR_SET_READ: "
                  << "Index of the set is out of bound" << endl;
@@ -212,8 +226,8 @@ void FuncMemory::write( uint64 value, uint64 addr, unsigned short num_of_bytes)
        abort();
        }
 
-    uint8* temp = (uint8*) calloc (sizeof(uint64), sizeof(uint8));
-    memcpy(temp, &value, sizeof(uint64)); // Converts uint64 value
+    uint8* temp = ( uint8*) calloc ( sizeof( uint64), sizeof( uint8**));
+    memcpy( temp, &value, sizeof( uint64)); // Converts uint64 value
                                           // to temporary byte array
     uint64 bytes_wrote = 0;
 
@@ -223,13 +237,13 @@ void FuncMemory::write( uint64 value, uint64 addr, unsigned short num_of_bytes)
         uint64 cur_page = getPage( addr + bytes_wrote);
         uint64 cur_offset = getOffset( addr + bytes_wrote);
 
-        if ( cur_offset == max_bytes + 1)
+        if ( cur_offset == max_bytes)
             {
             cur_offset = 0;
             cur_page++;
             }
 
-        if ( cur_page == max_pages + 1)
+        if ( cur_page == max_pages)
             {
             cur_page = 0;
             cur_set++;
@@ -237,29 +251,32 @@ void FuncMemory::write( uint64 value, uint64 addr, unsigned short num_of_bytes)
 
         if ( array_of_sets[ cur_set] == NULL)
             {
-            array_of_sets[ cur_set] = (uint8**) calloc ( max_pages + 1,
-                                                        sizeof( uint8*));
+            array_of_sets[ cur_set] = ( uint8**) calloc ( max_pages, sizeof( uint8*));
+
             if ( array_of_sets[ cur_set] == NULL)
-                    {
-                    cerr << "ERROR_SET_WRITE: Memory allocation fault" << endl;
-                    exit( EXIT_FAILURE);
-                    }
+                {
+                cerr << "ERROR_SET_WRITE: Memory allocation fault" << endl;
+                exit( EXIT_FAILURE);
+                }
             }
 
         if ( array_of_sets[ cur_set][ cur_page] == NULL)
             {
-            array_of_sets[ cur_set][ cur_page] = (uint8*) calloc ( max_bytes + 1,
-                                                              sizeof( uint8));
-            if ( this->array_of_sets == NULL)
-                    {
-                    cerr << "ERROR_PAGE_WRITE: Memory allocation fault" << endl;
-                    exit( EXIT_FAILURE);
-                    }
+            array_of_sets[ cur_set][ cur_page] = ( uint8*) calloc ( max_bytes, sizeof( uint8));
+
+            if ( array_of_sets[ cur_set][ cur_page] == NULL)
+                {
+                cerr << "ERROR_PAGE_WRITE: Memory allocation fault" << endl;
+                exit( EXIT_FAILURE);
+                }
             }
 
         array_of_sets[ cur_set][ cur_page][ cur_offset] = temp[ bytes_wrote];
         bytes_wrote++;
         }
+
+    free( temp);
+    temp = 0;
 }
 
 string FuncMemory::dump( string indent) const
@@ -290,7 +307,7 @@ string FuncMemory::dump( string indent) const
     bool skip_was_printed = false; //if some "00000000" have been skipped
                                    //this variable is true
 
-    while (cur_set < this->max_sets)
+    while ( cur_set < this->max_sets)
     {
         if ( !skip_was_printed)
         {/*if the set is't initialized, it is empty and hasn't to be printed*/
@@ -311,7 +328,7 @@ string FuncMemory::dump( string indent) const
                     skip_was_printed = true;
                 } else
                 { /*and null words*/
-                    string word = getWord(cur_set, cur_page, cur_offset, 4);
+                    string word = getWord( cur_set, cur_page, cur_offset, WORD_LENG);
                     if ( word.compare( "00000000") == 0)
                     {
                         oss << indent << "  ....  " << endl;
@@ -369,12 +386,12 @@ string FuncMemory::dump( string indent) const
             }
         }
 
-        if ( cur_offset >= ( this->max_bytes + 1))
+        if ( cur_offset >= this->max_bytes)
         {
             cur_page += cur_offset / this->max_bytes;
             cur_offset = cur_offset % this->max_bytes;
         }
-        if ( cur_page >= ( this->max_pages + 1))
+        if ( cur_page >= this->max_pages)
         {
             cur_set += cur_page / this->max_pages;
             cur_page = cur_page % this->max_pages;
