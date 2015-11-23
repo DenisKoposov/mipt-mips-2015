@@ -29,8 +29,6 @@ int main (int argc, char** argv)
 
     for ( vector<ElfSection>::iterator it = sections_array.begin(); it != sections_array.end(); ++it)
     {
-        cout << "it->name: " << it->name << endl;
-
         if ( !strcmp( argv[2], it->name))
         {
             flag = 1;
@@ -51,8 +49,8 @@ int main (int argc, char** argv)
     section_size += start;
 
     for ( int i = start; i < section_size; i += 4) {
-       FuncInstr commandLine( ( uint32) func_mem.read( i, sizeof(uint32)));
-       cout << commandLine.Dump("    ") << endl;;
+       FuncInstr command( ( uint32) func_mem.read( i, sizeof(uint32)));
+       cout << command.Dump("    ") << endl;;
     }
 
     return 0;

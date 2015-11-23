@@ -173,7 +173,7 @@ void FuncInstr::parseR( uint32 bytes)
 
     for ( int i = 0; i < 51; ++i)
     {
-        if (this->bytes.asR.funct == isaTable[i].func)
+        if (this->bytes.asR.funct == isaTable[i].func && isaTable[i].format == FORMAT_R)
         {
             this->instr_type = isaTable[i].type;
             return;
@@ -192,7 +192,7 @@ void FuncInstr::parseI( uint32 bytes)
 
     for ( int i = 0; i < 51; ++i)
     {
-        if (this->bytes.asI.opcode == isaTable[i].opcode)
+        if (this->bytes.asI.opcode == isaTable[i].opcode && isaTable[i].format == FORMAT_I)
         {
             this->instr_type = isaTable[i].type;
             return;
@@ -211,7 +211,7 @@ void FuncInstr::parseJ( uint32 bytes)
 
     for ( i = 0; i < 51; ++i)
     {
-        if (this->bytes.asJ.opcode == isaTable[i].opcode)
+        if (this->bytes.asJ.opcode == isaTable[i].opcode && isaTable[i].format == FORMAT_J)
         {
             this->instr_type = isaTable[i].type;
             return;
@@ -279,7 +279,7 @@ string FuncInstr::Dump( string indent) const
         case SRA:
 
             oss << indent << isaTable[this->instr_type].name << " "
-                << this->dst << ", " << this->trg << ", " << this->shamt;
+                << this->dst << ", " << this->trg << ", 0x" << this->shamt;
 
             break;
 
@@ -301,7 +301,7 @@ string FuncInstr::Dump( string indent) const
         case LUI:  // name $t, C
 
             oss << indent << isaTable[this->instr_type].name << " "
-                << this->trg << ", " << this->constant;
+                << this->trg << ", 0x" << this->constant;
 
             break;
 
@@ -322,7 +322,7 @@ string FuncInstr::Dump( string indent) const
         case BGTZ:
 
             oss << indent << isaTable[this->instr_type].name << " "
-                << this->src << ", " << hex << this->constant;
+                << this->src << ", 0x" << hex << this->constant;
 
             break;
 
